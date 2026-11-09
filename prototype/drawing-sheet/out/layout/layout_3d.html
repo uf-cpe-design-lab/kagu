@@ -1,0 +1,71 @@
+<!doctype html><html><head><meta charset="utf-8"><title>Kagu layout 3D</title>
+<style>body{margin:0;font-family:Arial,sans-serif;background:#eef0f2;overflow:hidden}
+header{position:absolute;top:0;left:0;right:0;padding:10px 14px;display:flex;gap:10px;align-items:center;background:#fff;border-bottom:1px solid #ccc;z-index:2}
+button,select{padding:5px 10px;border:1px solid #333;background:#fff;cursor:pointer;font-size:14px}#hint{color:#666;font-size:13px}
+canvas{display:block}</style>
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+</head><body><header><b>Kagu instrument Cabinet</b><select id="h"><option value="40" selected>40&quot; tall</option></select><select id="d"><option value="600" selected>600 mm (23.6&quot;) deep</option></select><select id="m"><option value="spaced" selected>spaced: spare height shared out as taller fronts</option></select>
+<button id="openall">Open all</button><button id="closeall">Close all</button>
+<span id="hint">click a drawer to open/close · drag to rotate · scroll to zoom</span></header>
+<pre id="err" style="position:absolute;top:56px;left:14px;color:#b00;background:#fff;z-index:3;white-space:pre-wrap;max-width:80vw"></pre>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+const showErr = e => { document.getElementById('err').textContent = 'Error: ' + (e && e.stack || e); console.error(e); };
+addEventListener('error', e => showErr(e.error || e.message));
+
+const renderer = new THREE.WebGLRenderer({antialias:true}); renderer.setPixelRatio(devicePixelRatio);
+renderer.setSize(innerWidth, innerHeight); document.body.appendChild(renderer.domElement);
+const scene = new THREE.Scene(); scene.background = new THREE.Color(0xeef0f2);
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;  // even light on every side
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.8));
+for (const [x, y, z] of [[2, 4, 3], [-2, 3, -3]]) { const l = new THREE.DirectionalLight(0xffffff, 0.9); l.position.set(x, y, z); scene.add(l); }
+const camera = new THREE.PerspectiveCamera(35, innerWidth/innerHeight, 0.001, 100);
+const controls = new OrbitControls(camera, renderer.domElement);
+let root = null, drawers = [];
+const loader = new GLTFLoader();
+async function load(){
+  const v = id => document.getElementById(id).value;
+  const buf = await fetch(`layout_${v('h')}in_${v('d')}d_${v('m')}.glb`).then(r => { if (!r.ok) throw new Error(r.status + ' ' + r.url); return r.arrayBuffer(); }).catch(showErr);
+  if (!buf) return;
+  if (root) scene.remove(root);
+  loader.parse(buf, '', g => { try {
+    root = g.scene; scene.add(root); root.updateMatrixWorld(true); drawers = [];
+    root.traverse(o => { if (o.name && o.name.startsWith('drawer')) drawers.push(o); });
+    for (const o of drawers) {
+      // slide direction = from the drawer's centre toward its front panel, in the parent's frame
+      // three.js de-duplicates node names on load (front, front_1, ...), so match by prefix
+      const box = new THREE.Box3().setFromObject(o), front = o.children.find(m => m.name.startsWith('front'));
+      const c = box.getCenter(new THREE.Vector3()), fc = new THREE.Box3().setFromObject(front).getCenter(new THREE.Vector3());
+      const dir = fc.clone().sub(c); dir.y = 0; dir.normalize();
+      const size = box.getSize(new THREE.Vector3());
+      const travel = (Math.abs(dir.x) * size.x + Math.abs(dir.z) * size.z) * 0.96;  // full-extension slides: the whole box clears the Carcass
+      const p0 = o.parent.worldToLocal(c.clone()), p1 = o.parent.worldToLocal(c.clone().addScaledVector(dir, travel));
+      o.userData = {home: o.position.clone(), step: p1.sub(p0), t: 0, target: 0};
+      o.traverse(m => { if (m !== o) m.userData.drawer = o; });
+    }
+    const box = new THREE.Box3().setFromObject(root), size = box.getSize(new THREE.Vector3()), ctr = box.getCenter(new THREE.Vector3());
+    controls.target.copy(ctr); const d = size.length() * 1.2;
+    camera.near = d / 1000; camera.far = d * 20;
+    camera.position.set(ctr.x + d*0.45, ctr.y + d*0.40, ctr.z + d*0.80); camera.updateProjectionMatrix(); controls.update();
+  } catch (e) { showErr(e); } }, showErr);
+}
+const ray = new THREE.Raycaster(), mouse = new THREE.Vector2(); let down = null;
+renderer.domElement.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX-down[0], e.clientY-down[1]) > 4) return;
+  mouse.set(e.clientX/innerWidth*2-1, -e.clientY/innerHeight*2+1); ray.setFromCamera(mouse, camera);
+  const hit = ray.intersectObjects(drawers, true)[0];
+  if (hit) { let o = hit.object; while (o && !drawers.includes(o)) o = o.parent; if (o) o.userData.target = o.userData.target ? 0 : 1; }
+});
+for (const id of ['h', 'd', 'm']) document.getElementById(id).onchange = load;
+document.getElementById('openall').onclick = () => drawers.forEach(d => d.userData.target = 1);
+document.getElementById('closeall').onclick = () => drawers.forEach(d => d.userData.target = 0);
+addEventListener('resize', () => { camera.aspect = innerWidth/innerHeight; camera.updateProjectionMatrix(); renderer.setSize(innerWidth, innerHeight); });
+(function tick(){ requestAnimationFrame(tick);
+  for (const d of drawers) { const u = d.userData; u.t += (u.target - u.t) * 0.12; d.position.copy(u.home).addScaledVector(u.step, u.t); }
+  controls.update(); renderer.render(scene, camera); })();
+load();
+</script></body></html>
