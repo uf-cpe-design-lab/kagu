@@ -1,0 +1,7 @@
+# third-party model downloads (linked + credited in the BOM, not redistributed)
+*-model_files.zip
+
+# agent worktrees
+.claude/worktrees/
+
+.DS_Store
