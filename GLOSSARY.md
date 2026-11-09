@@ -10,6 +10,10 @@ A mobile, gridfinity-drawer storage cabinet for the UF CpE design lab, holding e
 The whole rolling storage unit, from casters to top.
 _Avoid_: Cart, chest, unit
 
+**Carcass**:
+The plywood box structure of the cabinet that bays, casters and the top interface attach to.
+_Avoid_: Frame, box, case
+
 **Bay**:
 An opening in the cabinet that holds a stack of drawers, an instrument shelf, or nothing.
 _Avoid_: Compartment, section, slot
@@ -31,6 +35,10 @@ _Avoid_: Grid, plate
 **Bin**:
 A gridfinity container that sits on a baseplate.
 _Avoid_: Cup, tub, module
+
+**Shadow Bin**:
+A bin cut with the outlines of specific tools, so a missing tool is obvious at a glance.
+_Avoid_: Tool plate, insert, cutout, shadow board
 
 **Locked Drawer**:
 A drawer whose contents stay visible but can only be reached by staff, through its viewing lid.
