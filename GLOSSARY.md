@@ -29,8 +29,12 @@ A sliding container in a bay that holds one baseplate.
 _Avoid_: Tray, box
 
 **Baseplate**:
-The gridfinity grid that sits in a drawer and locates bins.
+The complete gridfinity grid in one drawer that locates bins; made of one or more baseplate tiles.
 _Avoid_: Grid, plate
+
+**Baseplate Tile**:
+One printed piece of a baseplate.
+_Avoid_: Baseplate piece, segment
 
 **Bin**:
 A gridfinity container that sits on a baseplate.
