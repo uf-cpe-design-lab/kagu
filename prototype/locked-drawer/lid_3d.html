@@ -186,13 +186,13 @@ const VARIANTS = {
                'The strip covers only the empty space behind the 12-deep grid: no Bin row is lost.',
                'Hinges are printed knuckles over the box sides, recessed so nothing stands proud of the lid.'],
        parts: [['1× lid', 'clear sheet, box width × (box depth − strip)'], ['1× rear strip', 'same sheet, fixed to the box back and sides'], ['2× hinge', 'printed knuckle pair + M4 pin, over the box sides'], ['2× bumper', 'felt, where the lid leans on the fronts above']] },
-  B: { name: 'Drop-in sheet', d: 'The sheet sits flush in rabbets round the box top; its back edge tucks into a grooved rail. Lift the front, slide forward, lift out.',
-       pivot: true, rail: 12, tongue: 6, extra: 0,
-       facts: ['No hinge, no holes in the sheet: it rests on 6 × 6 mm rabbets in the box sides and the back of the front, flush with the front’s top edge.',
-               'Its back edge sits 6 mm into a table-sawn groove in a 12 mm rail just in front of the box back, so it can’t be lifted from the back.',
-               'To open: lift the front edge ~10 mm, slide the sheet forward ~10 mm off the rail, lift it out. Staff set it on the worktop.',
-               'The rail stands where the empty space behind the 12-deep grid is, so no Bin row is lost; at full extension, once slid off the rail, the back edge is ~10 mm in front of the Carcass face.'],
-       parts: [['1× sheet', 'clear, interior + 12 mm each way'], ['1× rear rail', '12 mm ply, 6.5 × 6 mm groove in its front face'], ['rabbets', '6 × 6 mm in both box sides and the back of the front (router)']] },
+  B: { name: 'Drop-in sheet', d: 'The sheet rests on rabbets in the box sides and tucks into a grooved rail at the back; the front edge stays clear of the pull. Lift by the finger hole.',
+       pivot: true, rail: 12, tongue: 6, extra: 0, frontGap: 3,
+       facts: ['Supported on the sides and the back only: 6 × 6 mm rabbets in both box sides, and 6 mm into a table-sawn groove in a 12 mm rail just in front of the box back.',
+               'The front edge stops 3 mm behind the Drawer front, so it never rests on the pull’s flange or its pocket.',
+               'A ~25 mm finger hole near the front centre: lift the front, slide the sheet forward off the rail, lift it out.',
+               'The rail sits in the empty space behind the 12-deep grid, so no Bin row is lost; at full extension, slid off the rail, the back edge is ~10 mm in front of the Carcass face.'],
+       parts: [['1× sheet', 'clear, interior width + 12 mm, with a ~25 mm finger hole'], ['1× rear rail', '12 mm ply, 6.5 × 6 mm groove in its front face'], ['rabbets', '6 × 6 mm in the top inner edge of both box sides (router)']] },
   C: { name: 'Slide-out lid', d: 'The lid runs in printed rails on the box sides and slides forward off the Drawer.',
        pivot: false, extra: 2,
        facts: ['Nothing swings, so it works at any slide travel and never touches the fronts above.',
@@ -202,12 +202,11 @@ const VARIANTS = {
        parts: [['1× lid', 'clear sheet, full box depth'], ['2× rail', 'printed or aluminium angle, on the box side tops'], ['1× stop', 'printed, at the back of the rails']] },
 };
 const LOCKS = {
-  L0: { name: 'No lock yet, lock reserved', d: 'A "check out with staff" label on the front. The cam-lock hole is marked and its space kept clear behind the front.',
-        zone: 14, proud: 0, none: true,
-        facts: ['Honour system: anyone can lift the sheet; the label asks them to check out with staff.',
-                'The Baseplate still moves back ~14 mm and the hole centre is marked on the front, so adding lock 1 later is one 16.5 mm hole and a bonded strike.',
-                'Glossary impact: Locked Drawer becomes "staff checkout, lockable", not "only reached by staff".'],
-        parts: [['1× label', 'CHECK OUT WITH STAFF, on the front'], ['(later) cam lock', 'drops into the marked hole, Key B']] },
+  L0: { name: 'No lock', d: 'A "check out with staff" label on the front. Honour system: anyone can lift the sheet.',
+        zone: 0, proud: 0, none: true,
+        facts: ['No lock and nothing reserved for one: the Baseplate stays 1 mm behind the front.',
+                'The label asks students to check out with staff before lifting the sheet.'],
+        parts: [['1× label', 'CHECK OUT WITH STAFF, on the front']] },
   L1: { name: 'Cam lock in the Drawer front', d: 'Key face on the front below the pull; the cam swings up behind the front into a strike under the lid.',
         zone: 14, proud: 0,
         facts: ['Key B sits on the Drawer face like any keyed drawer; nothing is drilled in the lid.',
@@ -317,6 +316,10 @@ function sag(g) {  // square-ish plate on four simply supported edges (closed li
   const m = mat(), a = Math.sqrt((g.x[1] - g.x[0]) * ((g.pivotY ?? G.boxRearY) - G.boxFrontY)) / 1000, t = m.t / 1000;
   const D = m.E * t ** 3 / (12 * (1 - 0.37 ** 2)), q = m.rho * 9.81 * t;
   const area = (g.x[1] - g.x[0]) * (G.boxRearY - G.boxFrontY) / 1e6;
+  if (VARIANTS[state.variant].rail) {  // one-way span between the side rabbets; hand press at the free front edge, ~half the span acting
+    const L = (g.x[1] - g.x[0] - 2 * G.sideT + 6) / 1000, I = (L / 2) * t ** 3 / 12;
+    return {self: 5 * q * L ** 4 / (384 * D) * 1000, press: 50 * L ** 3 / (48 * m.E * I) * 1000, kg: area * t * m.rho, edge: true};
+  }
   return {self: 0.00406 * q * a ** 4 / D * 1000, press: 0.0116 * 50 * a ** 2 / D * 1000, kg: area * t * m.rho};
 }
 
@@ -342,7 +345,8 @@ function rebuild() {
     if (v.pivot) {
       pivot.position.set(0, g.pivotY, g.zT);
       if (v.rail) {  // front edge 6 mm into the front's rabbet, back edge 6 mm into the rail's groove
-        pivot.add(sheet(x0 + 6, x1 - 6, G.boxFrontY - 6 - g.pivotY, v.tongue, -g.t, 0));
+        pivot.add(sheet(x0 + 6, x1 - 6, G.boxFrontY + v.frontGap - g.pivotY, v.tongue, -g.t, 0));
+        const hole = new THREE.Mesh(new THREE.TorusGeometry(12.5, 1.2, 8, 32), M.print); hole.position.set(cx, G.boxFrontY + 40 - g.pivotY, 0.3); pivot.add(hole);
         root.add(boxMesh(x0 + G.sideT, x1 - G.sideT, g.pivotY, G.boxRearY - G.backT, g.zT - 20, g.zT, M.wood));
       } else {
         const rearEdge = g.clash ? G.boxRearY : g.pivotY;
@@ -359,7 +363,6 @@ function rebuild() {
     // lid lock
     const zKey = (u.zb + u.zf) / 2 - 8;
     if (lk.none) {
-      const ring = new THREE.Mesh(new THREE.TorusGeometry(8.25, 0.8, 8, 32), M.brass); ring.rotation.x = Math.PI / 2; ring.position.set(cx, G.faceY - 0.5, zKey); root.add(ring);
       const tag = boxMesh(cx + 50, cx + 190, G.faceY - 1.2, G.faceY - 0.2, zKey - 13, zKey + 13, M.label); root.add(tag);
       u.cam = null;
     } else if (state.lock === 'L1') {
@@ -377,7 +380,7 @@ function rebuild() {
       head.userData.keyOf = d; pivot.add(head); u.cam = null;
     }
     // space the lock needs behind the front, and the e-lock provision
-    root.add(boxMesh(cx - 25, cx + 25, G.boxFrontY, G.boxFrontY + lk.zone, u.zb + G.bottomT, g.zL - 0.5, lk.zone <= g.room ? M.zoneOk : M.zoneBad));
+    if (lk.zone) root.add(boxMesh(cx - 25, cx + 25, G.boxFrontY, G.boxFrontY + lk.zone, u.zb + G.bottomT, g.zL - 0.5, lk.zone <= g.room ? M.zoneOk : M.zoneBad));
     if (eOn()) root.add(boxMesh(cx + 30, cx + 130, G.boxFrontY, G.boxFrontY + eDepth(), u.zb + G.bottomT, g.zL - 0.5, eDepth() <= g.room ? M.elock : M.zoneBad));
   }
   refresh();
@@ -476,7 +479,8 @@ function refresh() {
 function paintChecks() {
   const d = state.active, out = [];
   const m = mat(), s = d ? sag(geom(d)) : null;
-  document.getElementById('sheet').textContent = d ? (() => { const g = geom(d); return `Lid ${Math.round(g.x[1] - g.x[0])} × ${Math.round((g.pivotY ?? G.boxRearY) - G.boxFrontY)} mm, ${m.t} mm ${m.name}, ${s.kg.toFixed(1)} kg. ${m.note}.`; })() : '';
+  document.getElementById('sheet').textContent = d ? (() => { const g = geom(d); const v = VARIANTS[state.variant], w = v.rail ? g.x[1] - g.x[0] - 2 * G.sideT + 12 : g.x[1] - g.x[0], dp = v.rail ? g.pivotY + v.tongue - G.boxFrontY - v.frontGap : (g.pivotY ?? G.boxRearY) - G.boxFrontY;
+    return `Lid ${Math.round(w)} × ${Math.round(dp)} mm, ${m.t} mm ${m.name}, ${s.kg.toFixed(1)} kg. ${m.note}.`; })() : '';
   if (!d) { document.getElementById('checks').innerHTML = '<li class="warn">Tick at least one Locked Drawer.</li>'; return; }
   const g = geom(d), v = VARIANTS[state.variant], lk = LOCKS[state.lock];
   if (v.rail) {
@@ -489,7 +493,8 @@ function paintChecks() {
   } else out.push(['ok', '<b>No swing:</b> the lid slides forward off the Drawer, whatever the travel.']);
   out.push(g.maxShift >= 0 ? ['ok', `<b>No Bin row lost.</b> 12 × 12 grid fits in front of the ${v.rail ? 'rail' : v.pivot && !g.clash ? 'pivot' : 'box back'} with ${Math.round(g.maxShift)} mm to spare.`]
                           : ['bad', `<b>Back Bin row is under the fixed strip</b> (${Math.round(-g.maxShift)} mm short): lose a row or use longer travel.`]);
-  out.push(lk.zone <= g.room ? ['ok', `<b>${lk.none ? 'Lock space reserved' : 'Lock fits'}:</b> ${lk.none ? 'a cam lock needs' : 'needs'} ${lk.zone} mm behind the front (TBC). Baseplate moved back ${Math.round(g.shift)} mm${eOn() ? ' (for the e-lock zone)' : ''}.`]
+  if (!lk.zone) out.push(['ok', '<b>No lock:</b> honour system, with a checkout label on the front. Baseplate stays put.']);
+  else out.push(lk.zone <= g.room ? ['ok', `<b>${lk.none ? 'Lock space reserved' : 'Lock fits'}:</b> ${lk.none ? 'a cam lock needs' : 'needs'} ${lk.zone} mm behind the front (TBC). Baseplate moved back ${Math.round(g.shift)} mm${eOn() ? ' (for the e-lock zone)' : ''}.`]
                              : ['bad', `<b>No room for the lock</b>: needs ${lk.zone} mm behind the front, ${Math.round(g.room)} mm available.`]);
   if (eOn()) out.push(eDepth() <= g.room ? ['ok', `<b>E-lock zone fits:</b> ${eDepth()} mm reserved, ${Math.round(g.room)} mm available.`]
                                          : ['bad', `<b>E-lock zone does not fit:</b> ${eDepth()} mm wanted, ${Math.round(g.room)} mm available.`]);
@@ -497,7 +502,7 @@ function paintChecks() {
   out.push([[0, 1].some(c => G.spare[c] - lockedPer[c] < 0) ? 'bad' : 'ok',
     `<b>Pitch +${g.add.toFixed(1)} mm per Locked Drawer</b> (lid ${g.t} + ${G.binGap + G.aboveGap} clearance, less the ${G.budget} mm already above the Bin lip${v.extra ? `, +${v.extra} ${state.variant === 'B' ? 'clip jaws' : 'rail lips'}` : ''}${lk.proud ? `, +${lk.proud} lock body` : ''}). Column spare: L ${(G.spare[0] - lockedPer[0]).toFixed(1)}, R ${(G.spare[1] - lockedPer[1]).toFixed(1)} mm.`]);
   if (g.zT > d.userData.zf && !v.rail) out.push(['warn', `Lid top is ${(g.zT - d.userData.zf).toFixed(1)} mm above the front's top edge: the front doesn't hide the lid edge unless the front grows too.`]);
-  out.push([s.press > 4 ? 'warn' : 'ok', `<b>Sag:</b> ${s.self.toFixed(1)} mm under its own weight, ${s.press.toFixed(1)} mm under a 50 N hand press${s.press > G.binGap ? ' (rests on the Bins, harmless)' : ''}.`]);
+  out.push([s.press > 4 ? 'warn' : 'ok', `<b>Sag:</b> ${s.self.toFixed(1)} mm under its own weight, ${s.press.toFixed(1)} mm under a 50 N hand press${s.edge ? ' at the free front edge' : ''}${s.press > G.binGap ? ' (rests on the Bins, harmless)' : ''}.`]);
   document.getElementById('checks').innerHTML = out.map(([c, h]) => `<li class="${c}"><span>${h}</span></li>`).join('');
 }
 
@@ -527,7 +532,7 @@ function drawSection() {
   h += R(G.boxRearY - G.backT, G.boxRearY, u.zb, g.zL, wood);
   // lock zone, e-lock zone, Bins
   const lk = LOCKS[state.lock];
-  h += R(G.boxFrontY, G.boxFrontY + lk.zone, u.zb + G.bottomT, g.zL, lk.zone <= g.room ? c('--zone') : c('--bad'), 'opacity=".55"');
+  if (lk.zone) h += R(G.boxFrontY, G.boxFrontY + lk.zone, u.zb + G.bottomT, g.zL, lk.zone <= g.room ? c('--zone') : c('--bad'), 'opacity=".55"');
   if (eOn()) h += R(G.boxFrontY, G.boxFrontY + eDepth(), u.zb + G.bottomT, g.zL, eDepth() <= g.room ? c('--elock') : c('--bad'), 'opacity=".35"');
   h += R(G.gridFrontY + g.shift, G.gridRearY + g.shift, u.zb + G.bottomT, g.binTop, c('--muted'), 'opacity=".45"');
   h += T_(X((G.gridFrontY + G.gridRearY) / 2 + g.shift), Z(u.zb + G.bottomT + 20), `12 rows · ${7 * u.u + G.lip} mm Bins`, 'middle');
@@ -536,10 +541,10 @@ function drawSection() {
   if (v.rail) {
     const py = g.pivotY, dy = -230, dz = 170;
     h += R(py, G.boxRearY - G.backT, g.zT - 20, g.zT, wood);
-    h += R(G.boxFrontY - 6, py + v.tongue, g.zL, g.zT, 'none', lidStroke + ' stroke-dasharray="6 4"');
-    h += `<rect x="${X(G.boxFrontY - 6) + dy}" y="${Z(g.zT + dz)}" width="${py + v.tongue - G.boxFrontY + 6}" height="${g.t}" fill="${c('--lid')}" fill-opacity=".35" ${g.clash ? `stroke="${c('--bad')}" stroke-width="2.5"` : lidStroke}/>`;
+    h += R(G.boxFrontY + v.frontGap, py + v.tongue, g.zL, g.zT, 'none', lidStroke + ' stroke-dasharray="6 4"');
+    h += `<rect x="${X(G.boxFrontY + v.frontGap) + dy}" y="${Z(g.zT + dz)}" width="${py + v.tongue - G.boxFrontY - v.frontGap}" height="${g.t}" fill="${c('--lid')}" fill-opacity=".35" ${g.clash ? `stroke="${c('--bad')}" stroke-width="2.5"` : lidStroke}/>`;
     h += `<path d="M${X(py)} ${Z(g.zT) - 6} q -60 -${dz / 2} ${dy} -${dz}" fill="none" stroke="${c('--lid')}" stroke-width="1.5" stroke-dasharray="4 4"/>`;
-    h += T_(X(G.boxFrontY - 6) + dy, Z(g.zT + dz) - 14, '1 lift front · 2 slide fwd · 3 lift out');
+    h += T_(X(G.boxFrontY + v.frontGap) + dy, Z(g.zT + dz) - 14, '1 lift front · 2 slide fwd · 3 lift out');
     h += T_(X(py) - 10, Z(g.zT) - 48, `rail + back ${Math.round(G.boxRearY - py)} mm`, 'end');
   } else if (v.pivot) {
     const py = g.pivotY, pz = g.zT;
