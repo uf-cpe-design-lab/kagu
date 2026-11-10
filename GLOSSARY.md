@@ -44,12 +44,12 @@ _Avoid_: Cup, tub, module
 A bin cut with the outlines of specific tools, so a missing tool is obvious at a glance.
 _Avoid_: Tool plate, insert, cutout, shadow board
 
-**Locked Drawer**:
-A drawer whose contents stay visible but can only be reached by staff, through its viewing lid.
-_Avoid_: Display drawer, secure drawer
+**Checkout Drawer**:
+A drawer whose contents stay visible under a viewing lid and are taken out only after checking out with staff (honour system; no lock).
+_Avoid_: Locked drawer, display drawer, secure drawer
 
 **Viewing Lid**:
-The clear, hinged, lockable cover over a locked drawer.
+The clear sheet dropped into a checkout drawer's box top, resting on the sides and back and lifted out by a finger hole.
 _Avoid_: Acrylic lid, cover
 
 ### Tops
