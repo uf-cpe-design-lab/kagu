@@ -141,8 +141,10 @@ import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
 const CFG = {
   frontY: -300,          // Carcass front face
   boxFrontY: -282,       // drawer box front (behind the 18 mm inset front)
-  barSetback: 43,        // lockbar centre from the Carcass front (TBC from CompX drawing)
-  barW: 19, barT: 3.2,   // lockbar section (TBC)
+  barSetback: 40.5,      // CompX B-100/C-100: 11/16" groove, front edge 1-1/4" behind the case front → centre 40.5 mm
+  barW: 16, barT: 3.2,   // lockbar section (bar size TBC; groove 17.5 × 4 mm)
+  cylSetback: 19,        // System 150 lock hole 3/4" from the front (C-100)
+  slideH: 45.7,          // Accuride 3832E height
   throw: 12.7,           // lockbar travel: 1/2"
   barZ0: 470, barZ1: 968,
   postW: 40,             // centre post width (variants B, C)
@@ -216,6 +218,7 @@ const M = {
   post: new THREE.MeshStandardMaterial({color: 0xb08a58, roughness: 0.7}),
   shaft: new THREE.MeshStandardMaterial({color: 0x1d1d1d, roughness: 0.5}),
   yoke: new THREE.MeshStandardMaterial({color: 0xd06a2a, roughness: 0.5}),
+  slide: new THREE.MeshStandardMaterial({color: 0xb8bec6, metalness: 0.5, roughness: 0.4, transparent: true, opacity: 0.55}),
 };
 const boxMesh = (x0, x1, y0, y1, z0, z1, mat) => { [x0, x1] = [Math.min(x0, x1), Math.max(x0, x1)]; const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); return m; };
 const cylMesh = (r, len, mat, axis = 'x') => { const g = new THREE.CylinderGeometry(r, r, len, 28); if (axis === 'x') g.rotateZ(Math.PI / 2); if (axis === 'z') g.rotateX(Math.PI / 2); return new THREE.Mesh(g, mat); };
@@ -261,7 +264,7 @@ function barX(c, v) {  // x of the lockbar face, and which way the pins point (+
   return c === 0 ? [-9, -1] : [9, 1];
 }
 function keyPos(at) {
-  const yk = CFG.frontY + CFG.barSetback;
+  const yk = CFG.frontY + CFG.cylSetback;
   if (at === 'sideL') return {p: [-600, yk, CFG.cylZ], axis: 'x', dir: -1};
   if (at === 'sideR') return {p: [600, yk, CFG.cylZ], axis: 'x', dir: 1};
   if (at === 'post') return {p: [0, CFG.frontY, CFG.cylZ], axis: 'y', dir: -1};
@@ -285,6 +288,8 @@ function buildHardware(v) {
       g.add(boxMesh(Math.min(xs, xs - s * 5), Math.max(xs, xs - s * 5), yb - 14, yb + 14, zc - 4, zc + 16, M.clip));
       g.add(boxMesh(Math.min(xs, xs - s * 7), Math.max(xs, xs - s * 7), yb + 16, yb + 34, zc - 10, zc + 10, k % 2 ? M.wedgeB : M.wedgeA));
       d.add(g); d.userData.hw = g;
+      // cabinet member of the side-mount slide on the lock side, as drawn now (front at the drawer box front)
+      root.add(boxMesh(bx, bx + s * 12.7, CFG.boxFrontY, CFG.boxFrontY + 559, zc - CFG.slideH / 2, zc + CFG.slideH / 2, M.slide));
     });
     hw.bars.push({group: bar, t: 0});
   }
