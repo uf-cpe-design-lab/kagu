@@ -1,0 +1,453 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Kagu Cabinet Lock</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a shop-floor workbench. The 3D Cabinet fills the left; a control rail on the right (stacks under on phones). */
+:root {
+  --bg: #e9ecef; --panel: #f8f9fa; --ink: #1d232a; --muted: #5b6672; --line: #c9d0d7;
+  --steel: #3f6e9a; --brass: #a8742c; --ok: #2f7d4f; --warn: #b7791f; --bad: #b23a3a;
+  --display: "Barlow Semi Condensed", "Arial Narrow", Arial, sans-serif;
+  --body: "Barlow", "Helvetica Neue", Arial, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #15191e; --panel: #1d2329; --ink: #e4e8ec; --muted: #9aa6b2; --line: #333c45;
+  --steel: #7fb0dd; --brass: #d9a457; --ok: #5dbb85; --warn: #e0a84a; --bad: #e07070; color-scheme: dark } }
+:root[data-theme="dark"] {
+  --bg: #15191e; --panel: #1d2329; --ink: #e4e8ec; --muted: #9aa6b2; --line: #333c45;
+  --steel: #7fb0dd; --brass: #d9a457; --ok: #5dbb85; --warn: #e0a84a; --bad: #e07070; color-scheme: dark }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 15px/1.45 var(--body); }
+.app { display: grid; grid-template-columns: minmax(0, 1fr) 380px; height: 100%; }
+#view { position: relative; min-width: 0; min-height: 0; }
+#view canvas { display: block; width: 100%; height: 100%; touch-action: none; }
+#toast { position: absolute; left: 50%; bottom: calc(18px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
+  background: var(--panel); border: 1px solid var(--line); border-left: 4px solid var(--warn); padding: 8px 14px; font-size: 14px;
+  max-width: calc(100% - 32px); }
+#loading { position: absolute; inset: 0; display: grid; place-items: center; color: var(--muted); font-family: var(--mono); font-size: 13px; }
+aside { background: var(--panel); border-left: 1px solid var(--line); overflow-y: auto; min-width: 0;
+  padding-block: 18px 28px; padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: flex; flex-direction: column; gap: 18px; }
+h1 { font: 700 22px/1.1 var(--display); margin: 0; letter-spacing: .01em; text-wrap: balance; }
+h2 { font: 600 12px/1 var(--display); text-transform: uppercase; letter-spacing: .09em; color: var(--muted); margin: 0 0 8px; }
+.sub { color: var(--muted); font-size: 13px; margin: 4px 0 0; }
+.variants { display: grid; gap: 6px; }
+.variants button { text-align: left; display: grid; grid-template-columns: 26px 1fr; gap: 2px 8px; padding: 8px 10px;
+  background: transparent; border: 1px solid var(--line); color: var(--ink); cursor: pointer; font: inherit; }
+.variants button .k { grid-row: span 2; font: 700 18px/1.2 var(--display); color: var(--muted); }
+.variants button b { font: 600 15px/1.2 var(--display); }
+.variants button span.d { font-size: 12.5px; color: var(--muted); }
+.variants button[aria-pressed="true"] { border-color: var(--steel); box-shadow: inset 3px 0 0 var(--steel); }
+.variants button[aria-pressed="true"] .k { color: var(--steel); }
+button:focus-visible, input:focus-visible { outline: 2px solid var(--steel); outline-offset: 2px; }
+.keys { display: flex; flex-wrap: wrap; gap: 8px; }
+.keybtn { flex: 1 1 140px; padding: 9px 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer;
+  font: 600 14px/1.2 var(--display); display: flex; align-items: center; gap: 8px; }
+.keybtn i { width: 12px; height: 12px; border-radius: 50%; border: 2px solid var(--brass); flex: none; }
+.keybtn[aria-pressed="true"] i { background: var(--brass); }
+.cols { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.col { border: 1px solid var(--line); padding: 8px; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.col .h { font: 600 13px/1 var(--display); text-transform: uppercase; letter-spacing: .06em; display: flex; justify-content: space-between; }
+.chip { font: 500 11px/1 var(--mono); padding: 3px 5px; border: 1px solid currentColor; }
+.chip.locked { color: var(--brass); } .chip.inter { color: var(--steel); } .chip.free { color: var(--muted); }
+.dr { display: flex; justify-content: space-between; font: 12px/1.5 var(--mono); color: var(--muted); }
+.dr.open { color: var(--ink); font-weight: 500; }
+.tip { border: 1px solid var(--line); padding: 10px; display: grid; gap: 8px; }
+.meter { height: 10px; background: var(--line); position: relative; }
+.meter > div { position: absolute; inset: 0 auto 0 0; background: var(--ok); }
+.tipline { display: flex; justify-content: space-between; font: 13px/1.3 var(--mono); font-variant-numeric: tabular-nums; }
+.tipline b { font-weight: 500; }
+.verdict { font: 600 15px/1.2 var(--display); }
+.inputs { display: grid; grid-template-columns: 1fr auto; gap: 6px 10px; align-items: center; font-size: 13px; }
+.inputs input[type=number] { width: 72px; font: 13px var(--mono); padding: 3px 5px; background: var(--bg); color: var(--ink); border: 1px solid var(--line); }
+.row { display: flex; gap: 8px; flex-wrap: wrap; }
+.row button { padding: 6px 10px; border: 1px solid var(--line); background: transparent; color: var(--ink); cursor: pointer; font: 500 13px var(--body); }
+.row button[aria-pressed="true"] { border-color: var(--bad); color: var(--bad); }
+ul.facts { margin: 0; padding-left: 18px; display: grid; gap: 5px; font-size: 13.5px; }
+ul.facts li.con { color: var(--ink); } ul.facts li::marker { color: var(--muted); }
+.tag { font: 500 11px var(--mono); color: var(--muted); }
+table.parts { width: 100%; border-collapse: collapse; font-size: 12.5px; }
+table.parts td { padding: 3px 4px; border-top: 1px solid var(--line); vertical-align: top; }
+table.parts td:first-child { font-family: var(--mono); white-space: nowrap; }
+.foot { font-size: 12px; color: var(--muted); }
+@media (max-width: 820px) {
+  .app { grid-template-columns: 1fr; grid-template-rows: 58vh auto; height: auto; }
+  aside { border-left: 0; border-top: 1px solid var(--line); overflow: visible; }
+}
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+</head><body>
+<div class="app">
+  <div id="view"><div id="loading">Loading the chosen layout (40" · 600 deep · two columns)…</div><div id="toast" hidden></div></div>
+  <aside>
+    <div>
+      <h1>Whole-Cabinet lock and interlock</h1>
+      <p class="sub">Prototype for the wayfinder ticket. Pick a variant, click Drawers to open them (numbered from the bottom), turn the keys. Steel = lockbars, brass = key cylinders.</p>
+    </div>
+    <section>
+      <h2>Variant</h2>
+      <div class="variants" id="variants"></div>
+    </section>
+    <section>
+      <h2>Keys</h2>
+      <div class="keys" id="keys"></div>
+    </section>
+    <section>
+      <h2>Drawer columns</h2>
+      <div class="cols" id="cols"></div>
+    </section>
+    <section>
+      <h2>Tip check about the front casters</h2>
+      <div class="tip">
+        <div class="verdict" id="verdict">–</div>
+        <div class="meter"><div id="meterbar"></div></div>
+        <div class="tipline"><span>holding moment</span><b id="mHold">–</b></div>
+        <div class="tipline"><span>tipping moment</span><b id="mTip">–</b></div>
+        <div class="inputs">
+          <label for="inLoad">Contents per Drawer (kg)</label><input id="inLoad" type="number" min="0" max="30" step="0.5" value="3">
+          <label for="inTop">Top Module (kg)</label><input id="inTop" type="number" min="0" max="60" step="1" value="15">
+          <label for="inLean">Someone leaning on an open Drawer (kg)</label><input id="inLean" type="number" min="0" max="100" step="5" value="0">
+        </div>
+        <div class="row">
+          <button id="nointer" aria-pressed="false">Disable interlocks</button>
+          <button id="openall">Open every Drawer</button>
+          <button id="closeall">Close all</button>
+        </div>
+        <p class="foot" id="massnote"></p>
+      </div>
+    </section>
+    <section>
+      <h2>What this variant means</h2>
+      <ul class="facts" id="facts"></ul>
+    </section>
+    <section>
+      <h2>Parts per Cabinet</h2>
+      <table class="parts" id="parts"></table>
+    </section>
+    <p class="foot">Throwaway prototype. Geometry is the approved layout prototype (prototype/drawing-sheet). Hardware is drawn schematically; dimensions marked "TBC" wait on CompX drawings.</p>
+  </aside>
+</div>
+
+<script type="importmap">{"imports":{"three":"https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js","three/addons/":"https://cdn.jsdelivr.net/npm/three@0.160.0/examples/jsm/"}}</script>
+<script type="module">
+import * as THREE from 'three';
+import {OrbitControls} from 'three/addons/controls/OrbitControls.js';
+import {GLTFLoader} from 'three/addons/loaders/GLTFLoader.js';
+import {RoomEnvironment} from 'three/addons/environments/RoomEnvironment.js';
+
+// ---------- hardware geometry (mm, model frame: x across, y front(-) to back(+), z up) ----------
+const CFG = {
+  frontY: -300,          // Carcass front face
+  boxFrontY: -282,       // drawer box front (behind the 18 mm inset front)
+  barSetback: 43,        // lockbar centre from the Carcass front (TBC from CompX drawing)
+  barW: 19, barT: 3.2,   // lockbar section (TBC)
+  throw: 12.7,           // lockbar travel: 1/2"
+  barZ0: 470, barZ1: 968,
+  postW: 40,             // centre post width (variants B, C)
+  cylZ: 945,             // key cylinder height (top Drawer level)
+  casterY: -230,         // front caster axle line (70 mm in from the front)
+  travelFrac: 0.96,
+};
+
+const VARIANTS = {
+  A: { name: 'Two side keys', d: 'Lockbar on each outer side; a key in each side panel.',
+       bars: 'outer', keys: [{id: 'L', cols: [0], at: 'sideL', label: 'Left column key'}, {id: 'R', cols: [1], at: 'sideR', label: 'Right column key'}],
+       facts: [
+         'Two cylinders, keyed alike on Key A: two turns to lock the Cabinet.',
+         'Keys sit on the outside of each side panel, just below the worktop, near the front corner.',
+         'Lock and anti-tip share one bar per column (System 150 cylinder + System 350 wedges) if CompX confirms they combine.',
+         'No front rail, no centre post, fronts unchanged. Each outer side becomes the "lock side" of its column.',
+         'The side handles and Tool Wall must keep clear of the key.'],
+       parts: [['2× LB-480', 'lockbar, cut to ~500 mm'], ['13× pin + clip', 'one per Drawer'], ['13× wedge', 'anti-tip, A/B pattern'], ['2× CB-150', 'side-panel cylinder, keyed alike']] },
+  B: { name: 'One centre key, cable drive', d: 'Bars on the outer sides; one key in a centre post drives both through flexible shafts.',
+       bars: 'outer', post: true, shafts: true, keys: [{id: 'C', cols: [0, 1], at: 'post', label: 'Cabinet key'}],
+       facts: [
+         'One turn locks both columns.',
+         'Key sits front and centre at the top of a ~40 mm post on the divider. The fronts beside it lose ~11 mm each; still 12 units wide.',
+         'Two flexible shafts run in a routed channel under the Carcass top to an actuator on each lockbar (System 300 style).',
+         'Most parts, highest cost; shaft routing must clear the top Drawers.'],
+       parts: [['2× LB-480', 'lockbar'], ['13× pin + clip', ''], ['13× wedge', ''], ['2× AC-200 + FS-362', 'actuator + flexible shaft (TBC: one cylinder driving two)'], ['1× cylinder', 'in the centre post'], ['1× post', 'hardwood or aluminium, ~40 mm']] },
+  C: { name: 'One centre key, bars on divider', d: 'Both lockbars in the centre divider; one key in a centre post lifts both through a yoke.',
+       bars: 'divider', post: true, yoke: true, keys: [{id: 'C', cols: [0, 1], at: 'post', label: 'Cabinet key'}],
+       facts: [
+         'One turn locks both columns; no cables.',
+         'Both bars live in the divider (one groove per face), so the divider needs to be thicker or the post carries the grooves.',
+         'The yoke that lets one cam lift two bars is a DIY part (printed or bent aluminium), not off the shelf.',
+         'Clips move to the divider side of every Drawer box; outer sides stay plain for the Tool Wall.'],
+       parts: [['2× LB-480', 'lockbar'], ['13× pin + clip', ''], ['13× wedge', ''], ['1× cylinder', 'in the centre post'], ['1× yoke', 'DIY, printed / aluminium'], ['1× post', '~40 mm, carries both grooves']] },
+  D: { name: 'Two keys in the top fronts', d: 'Bars on the outer sides; a key in the top Drawer front of each column.',
+       bars: 'outer', keys: [{id: 'L', cols: [0], at: 'frontL', label: 'Left column key'}, {id: 'R', cols: [1], at: 'frontR', label: 'Right column key'}],
+       facts: [
+         'Two cylinders keyed alike: two turns, the familiar desk-pedestal look.',
+         'The key rides on the top Drawer, so the top Drawer is always the lock Drawer of its column.',
+         'Shares the front with the flush pull and accessory pockets.',
+         'Whether a drawer-front cylinder can also run the anti-tip bar is TBC (System 101 vs 300).'],
+       parts: [['2× LB-480', 'lockbar'], ['13× pin + clip', ''], ['13× wedge', ''], ['2× CB-101', 'drawer-front cylinder, keyed alike']] },
+};
+
+// ---------- scene ----------
+const view = document.getElementById('view');
+const renderer = new THREE.WebGLRenderer({antialias: true});
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+view.appendChild(renderer.domElement);
+const scene = new THREE.Scene();
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const paintBg = () => { scene.background = new THREE.Color(css('--bg')); };
+paintBg(); matchMedia('(prefers-color-scheme: dark)').addEventListener('change', paintBg);
+new MutationObserver(paintBg).observe(document.documentElement, {attributes: true, attributeFilter: ['data-theme']});
+scene.environment = new THREE.PMREMGenerator(renderer).fromScene(new RoomEnvironment(), 0.04).texture;
+scene.add(new THREE.HemisphereLight(0xffffff, 0x888888, 0.7));
+for (const [x, y, z] of [[2, 4, 3], [-2, 3, -3]]) { const l = new THREE.DirectionalLight(0xffffff, 0.8); l.position.set(x, y, z); scene.add(l); }
+const camera = new THREE.PerspectiveCamera(35, 1, 0.01, 50);
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.enableDamping = true;
+function resize() { const r = view.getBoundingClientRect(); renderer.setSize(r.width, r.height, false); camera.aspect = r.width / Math.max(1, r.height); camera.updateProjectionMatrix(); }
+new ResizeObserver(resize).observe(view);
+
+const M = {
+  steel: new THREE.MeshStandardMaterial({color: 0x3f6e9a, metalness: 0.6, roughness: 0.35}),
+  pin: new THREE.MeshStandardMaterial({color: 0x9aa3ad, metalness: 0.8, roughness: 0.3}),
+  clip: new THREE.MeshStandardMaterial({color: 0x2b2f33, roughness: 0.6}),
+  wedgeA: new THREE.MeshStandardMaterial({color: 0x2f7d4f, roughness: 0.6}),
+  wedgeB: new THREE.MeshStandardMaterial({color: 0x7d4f2f, roughness: 0.6}),
+  brass: new THREE.MeshStandardMaterial({color: 0xc8963e, metalness: 0.8, roughness: 0.3}),
+  post: new THREE.MeshStandardMaterial({color: 0xb08a58, roughness: 0.7}),
+  shaft: new THREE.MeshStandardMaterial({color: 0x1d1d1d, roughness: 0.5}),
+  yoke: new THREE.MeshStandardMaterial({color: 0xd06a2a, roughness: 0.5}),
+};
+const boxMesh = (x0, x1, y0, y1, z0, z1, mat) => { [x0, x1] = [Math.min(x0, x1), Math.max(x0, x1)]; const m = new THREE.Mesh(new THREE.BoxGeometry(x1 - x0, y1 - y0, z1 - z0), mat); m.position.set((x0 + x1) / 2, (y0 + y1) / 2, (z0 + z1) / 2); return m; };
+const cylMesh = (r, len, mat, axis = 'x') => { const g = new THREE.CylinderGeometry(r, r, len, 28); if (axis === 'x') g.rotateZ(Math.PI / 2); if (axis === 'z') g.rotateX(Math.PI / 2); return new THREE.Mesh(g, mat); };
+
+let kagu, drawers = [], hw = null;
+const state = { variant: 'A', locked: {}, interlock: true };
+
+const loader = new GLTFLoader();
+// the chosen layout from the drawing-sheet prototype (serve the prototype/ folder, see README)
+loader.load('../drawing-sheet/out/layout/layout_40in_600d_spaced.glb', onModel, undefined, onFail);
+function onFail(e) { document.getElementById('loading').textContent = 'Could not load the layout model: ' + (e.message || e); }
+function onModel(g) {
+  document.getElementById('loading').hidden = true;
+  scene.add(g.scene);
+  kagu = g.scene.getObjectByName('kagu');
+  kagu.traverse(o => { if (/^drawer-\d-\d$/.test(o.name)) drawers.push(o); });
+  drawers.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+  for (const d of drawers) {
+    const [, c, i] = d.name.match(/drawer-(\d)-(\d)/);
+    const bb = new THREE.Box3();  // extents in kagu frame (metres); the drawer node carries no transform
+    d.traverse(m => { if (m.isMesh) { m.geometry.computeBoundingBox(); bb.union(m.geometry.boundingBox); } });
+    const front = d.children.find(m => m.name.startsWith('front'));
+    front.geometry.computeBoundingBox();
+    const fb = front.geometry.boundingBox;
+    d.userData = { col: +c, idx: +i, t: 0, target: 0, z0: fb.min.z * 1000, z1: fb.max.z * 1000,
+      depth: (bb.max.y - bb.min.y) * 1000, front, frontGeo: front.geometry, xIn: +c === 0 ? fb.max.x * 1000 : fb.min.x * 1000 };
+    d.traverse(m => { if (m !== d) m.userData.drawer = d; });
+  }
+  const box = new THREE.Box3().setFromObject(g.scene), ctr = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
+  controls.target.copy(ctr); const dist = size.length() * 1.15;
+  camera.position.set(ctr.x + dist * 0.35, ctr.y + dist * 0.25, ctr.z + dist * 0.9);
+  resize(); buildUI(); setVariant(location.hash.slice(1) in VARIANTS ? location.hash.slice(1) : 'A');
+}
+
+// ---------- hardware per variant ----------
+function colDrawers(c) { return drawers.filter(d => d.userData.col === c); }
+function barX(c, v) {  // x of the lockbar face, and which way the pins point (+1 = toward +x)
+  if (v.bars === 'outer') return c === 0 ? [-582, 1] : [582, -1];
+  return c === 0 ? [-9, -1] : [9, 1];
+}
+function keyPos(at) {
+  const yk = CFG.frontY + CFG.barSetback;
+  if (at === 'sideL') return {p: [-600, yk, CFG.cylZ], axis: 'x', dir: -1};
+  if (at === 'sideR') return {p: [600, yk, CFG.cylZ], axis: 'x', dir: 1};
+  if (at === 'post') return {p: [0, CFG.frontY, CFG.cylZ], axis: 'y', dir: -1};
+  return null;
+}
+function buildHardware(v) {
+  if (hw) { kagu.remove(hw.root); for (const d of drawers) { for (const g of [d.userData.hw, d.userData.hwKey]) if (g) d.remove(g); d.userData.hw = d.userData.hwKey = null; d.userData.front.geometry = d.userData.frontGeo; } }
+  const root = new THREE.Group(); root.scale.setScalar(0.001); kagu.add(root);
+  hw = { root, bars: [], keys: {} };
+  const yb = CFG.frontY + CFG.barSetback;
+  for (const c of [0, 1]) {
+    const [bx, s] = barX(c, v);
+    const bar = new THREE.Group(); root.add(bar);
+    bar.add(boxMesh(bx - s * CFG.barT, bx, yb - CFG.barW / 2, yb + CFG.barW / 2, CFG.barZ0, CFG.barZ1, M.steel));
+    colDrawers(c).forEach((d, k) => {
+      const zc = (d.userData.z0 + d.userData.z1) / 2;
+      const pin = cylMesh(4.8, 12, M.pin, 'x'); pin.position.set(bx + s * 6, yb, zc - 8); bar.add(pin);
+      // clip + anti-tip wedge ride on the drawer box side, facing the bar
+      const g = new THREE.Group(); g.scale.setScalar(0.001);
+      const xs = bx + s * 13;  // drawer box side face
+      g.add(boxMesh(Math.min(xs, xs - s * 5), Math.max(xs, xs - s * 5), yb - 14, yb + 14, zc - 4, zc + 16, M.clip));
+      g.add(boxMesh(Math.min(xs, xs - s * 7), Math.max(xs, xs - s * 7), yb + 16, yb + 34, zc - 10, zc + 10, k % 2 ? M.wedgeB : M.wedgeA));
+      d.add(g); d.userData.hw = g;
+    });
+    hw.bars.push({group: bar, t: 0});
+  }
+  if (v.post) {
+    root.add(boxMesh(-CFG.postW / 2, CFG.postW / 2, CFG.frontY, CFG.frontY + 30, 466, 973, M.post));
+    // fronts beside the post get narrower (pivot on their outer edge)
+    for (const d of drawers) {
+      const u = d.userData, xo = u.col === 0 ? -580 : 580, xi = u.xIn, want = u.col === 0 ? -CFG.postW / 2 - 2 : CFG.postW / 2 + 2;
+      const sx = (want - xo) / (xi - xo), m = new THREE.Matrix4().makeTranslation(xo / 1000, 0, 0).multiply(new THREE.Matrix4().makeScale(sx, 1, 1)).multiply(new THREE.Matrix4().makeTranslation(-xo / 1000, 0, 0));
+      u.front.geometry = u.frontGeo.clone().applyMatrix4(m);
+    }
+  }
+  if (v.shafts) for (const c of [0, 1]) {
+    const [bx] = barX(c, v), zs = 966;
+    const curve = new THREE.CatmullRomCurve3([new THREE.Vector3(0, yb, CFG.cylZ), new THREE.Vector3(0, yb, zs), new THREE.Vector3(bx * 0.5, yb + 10, zs), new THREE.Vector3(bx * 0.97, yb, zs), new THREE.Vector3(bx * 0.99, yb, CFG.barZ1 - 10)]);
+    root.add(new THREE.Mesh(new THREE.TubeGeometry(curve, 60, 3.5, 10), M.shaft));
+    root.add(boxMesh(bx - Math.sign(bx) * 30, bx, yb - 15, yb + 15, CFG.barZ1 - 30, CFG.barZ1 - 5, M.clip));
+  }
+  if (v.yoke) {
+    const y = new THREE.Group(); root.add(y);
+    y.add(boxMesh(-14, 14, yb - 6, yb + 6, CFG.cylZ - 8, CFG.cylZ + 8, M.yoke));
+    hw.yoke = y;
+  }
+  for (const k of v.keys) {
+    let node, kp = keyPos(k.at);
+    const cyl = new THREE.Group();
+    const head = cylMesh(11, 6, M.brass, kp ? kp.axis : 'y'); cyl.add(head);
+    const slot = boxMesh(-1, 1, -4, 4, -7, 7, M.clip);
+    if (kp) {
+      cyl.position.set(...kp.p);
+      if (kp.axis === 'x') { head.position.x = kp.dir * 3; slot.position.x = kp.dir * 6.5; }
+      else { head.position.y = -3; slot.geometry = new THREE.BoxGeometry(2, 1, 14); slot.position.y = -6.5; }
+      root.add(cyl);
+    } else {  // in the top Drawer front: rides with the drawer
+      const d = colDrawers(k.at === 'frontL' ? 0 : 1).at(-1), u = d.userData;
+      const g = new THREE.Group(); g.scale.setScalar(0.001); d.add(g);
+      const xk = k.at === 'frontL' ? -470 : 470;
+      cyl.position.set(xk, CFG.frontY - 3, (u.z0 + u.z1) / 2 - 8);
+      head.position.y = 0; slot.geometry = new THREE.BoxGeometry(2, 1, 14); slot.position.y = -3.5;
+      g.add(cyl); u.hwKey = g;
+    }
+    cyl.add(slot); slot.userData.isSlot = true;
+    cyl.traverse(m => { m.userData.key = k.id; });
+    hw.keys[k.id] = {group: cyl, slot, t: 0, axis: kp ? kp.axis : 'y'};
+  }
+}
+
+// ---------- behaviour ----------
+const toastEl = document.getElementById('toast'); let toastTimer;
+function toast(msg) { toastEl.textContent = msg; toastEl.hidden = false; clearTimeout(toastTimer); toastTimer = setTimeout(() => toastEl.hidden = true, 2600); }
+const V = () => VARIANTS[state.variant];
+const keyFor = c => V().keys.find(k => k.cols.includes(c));
+const isLocked = c => !!state.locked[keyFor(c).id];
+const openIn = c => colDrawers(c).filter(d => d.userData.target === 1);
+const label = d => `${d.userData.col === 0 ? 'L' : 'R'}${d.userData.idx + 1}`;
+
+function clickDrawer(d) {
+  const u = d.userData;
+  if (u.target === 1) { u.target = 0; return refresh(); }
+  if (isLocked(u.col)) { toast(`${label(d)} is locked. Turn the ${keyFor(u.col).label.toLowerCase()} first.`); return; }
+  const others = openIn(u.col);
+  if (state.interlock && others.length) { toast(`Interlock: close ${others.map(label).join(', ')} before opening ${label(d)}.`); return; }
+  u.target = 1; refresh();
+}
+function turnKey(id) {
+  const k = V().keys.find(k => k.id === id);
+  if (!state.locked[id]) {
+    const open = k.cols.flatMap(openIn);
+    if (open.length) { toast(`Close ${open.map(label).join(', ')} before locking (assumed; check the CompX behaviour).`); return; }
+    const kd = k.at.startsWith('front') ? colDrawers(k.cols[0]).at(-1) : null;
+    if (kd && kd.userData.t > 0.02) { toast('Close the top Drawer: its key only engages the bar when it is shut.'); return; }
+  }
+  state.locked[id] = !state.locked[id]; refresh();
+}
+
+const ray = new THREE.Raycaster(), ptr = new THREE.Vector2(); let down = null;
+renderer.domElement.addEventListener('pointerdown', e => down = [e.clientX, e.clientY]);
+renderer.domElement.addEventListener('pointerup', e => {
+  if (!down || Math.hypot(e.clientX - down[0], e.clientY - down[1]) > 5) return;
+  const r = renderer.domElement.getBoundingClientRect();
+  ptr.set((e.clientX - r.left) / r.width * 2 - 1, -(e.clientY - r.top) / r.height * 2 + 1); ray.setFromCamera(ptr, camera);
+  const targets = [...drawers, ...Object.values(hw.keys).map(k => k.group)];
+  const hit = ray.intersectObjects(targets, true)[0]; if (!hit) return;
+  if (hit.object.userData.key) return turnKey(hit.object.userData.key);
+  if (hit.object.userData.drawer) clickDrawer(hit.object.userData.drawer);
+});
+
+// ---------- tip check ----------
+const MASS = { carcass: 61, instruments: 42, casters: 7 };  // kg, estimates: 18 mm birch ~12.2 kg/m², 12 mm back, 4 casters, two Rigol sets
+function drawerMass(d) { const tall = d.userData.z1 - d.userData.z0 > 90; return (tall ? 5 : 4) + (+document.getElementById('inLoad').value || 0); }
+function tip() {
+  const yc = CFG.casterY, load = +document.getElementById('inLoad').value || 0, top = +document.getElementById('inTop').value || 0, lean = +document.getElementById('inLean').value || 0;
+  let hold = 0, over = 0, farthest = null;
+  const add = (m, y) => { const arm = (y - yc) / 1000; if (arm >= 0) hold += m * arm; else over += -m * arm; };
+  add(MASS.carcass, 5); add(MASS.instruments, -100); add(MASS.casters, 0); add(top, -6);
+  for (const d of drawers) {
+    const u = d.userData, travel = u.depth * CFG.travelFrac * u.t;
+    add(drawerMass(d), -20 - travel);
+    if (u.t > 0.5 && (!farthest || travel > farthest)) farthest = travel;
+  }
+  if (lean && farthest) add(lean, CFG.frontY - farthest);
+  return {hold, over, leanApplied: lean && farthest};
+}
+function paintTip() {
+  const {hold, over, leanApplied} = tip(), ratio = over / Math.max(hold, 1e-6);
+  document.getElementById('mHold').textContent = hold.toFixed(1) + ' kg·m';
+  document.getElementById('mTip').textContent = over.toFixed(1) + ' kg·m';
+  const bar = document.getElementById('meterbar'); bar.style.width = Math.min(100, ratio * 100) + '%';
+  const col = ratio >= 1 ? '--bad' : ratio > 0.7 ? '--warn' : '--ok'; bar.style.background = `var(${col})`;
+  const v = document.getElementById('verdict'); v.style.color = `var(${col})`;
+  v.textContent = ratio >= 1 ? `Tips forward (${Math.round(ratio * 100)}% of the holding moment)` : `Stable: tipping is ${Math.round(ratio * 100)}% of holding`;
+  const n = +document.getElementById('inLean').value || 0;
+  document.getElementById('massnote').textContent = `Estimates: Carcass ${MASS.carcass} kg, instruments ${MASS.instruments} kg, Drawer box 4–5 kg + contents. Front casters 70 mm in from the front.` + (n && !leanApplied ? ' The lean load applies once a Drawer is open.' : '');
+}
+
+// ---------- UI ----------
+function buildUI() {
+  const vEl = document.getElementById('variants');
+  vEl.innerHTML = Object.entries(VARIANTS).map(([k, v]) => `<button id="v${k}" data-v="${k}" aria-pressed="false"><span class="k">${k}</span><b>${v.name}</b><span class="d">${v.d}</span></button>`).join('');
+  vEl.onclick = e => { const b = e.target.closest('button'); if (b) setVariant(b.dataset.v); };
+  for (const id of ['inLoad', 'inTop', 'inLean']) document.getElementById(id).oninput = paintTip;
+  const ni = document.getElementById('nointer');
+  ni.onclick = () => { state.interlock = !state.interlock; ni.setAttribute('aria-pressed', String(!state.interlock)); if (state.interlock) drawers.forEach(d => d.userData.target = 0); refresh(); };
+  document.getElementById('openall').onclick = () => {
+    if (state.interlock) { toast('With interlocks on, only one Drawer per column opens. Disable them to see why they are there.'); return; }
+    if ([0, 1].some(isLocked)) { toast('Unlock first.'); return; }
+    drawers.forEach(d => d.userData.target = 1); refresh();
+  };
+  document.getElementById('closeall').onclick = () => { drawers.forEach(d => d.userData.target = 0); refresh(); };
+}
+function setVariant(k) {
+  state.variant = k; state.locked = {}; drawers.forEach(d => { d.userData.target = 0; d.userData.t = 0; });
+  history.replaceState(null, '', '#' + k);
+  document.querySelectorAll('#variants button').forEach(b => b.setAttribute('aria-pressed', String(b.dataset.v === k)));
+  const v = V();
+  document.getElementById('facts').innerHTML = v.facts.map(f => `<li>${f}</li>`).join('');
+  document.getElementById('parts').innerHTML = v.parts.map(([a, b]) => `<tr><td>${a}</td><td>${b}</td></tr>`).join('');
+  buildHardware(v); refresh();
+}
+function refresh() {
+  const v = V();
+  document.getElementById('keys').innerHTML = v.keys.map(k => `<button class="keybtn" id="key${k.id}" data-k="${k.id}" aria-pressed="${!!state.locked[k.id]}"><i></i>${k.label}: ${state.locked[k.id] ? 'locked' : 'unlocked'}</button>`).join('');
+  document.querySelectorAll('.keybtn').forEach(b => b.onclick = () => turnKey(b.dataset.k));
+  document.getElementById('cols').innerHTML = [0, 1].map(c => {
+    const open = openIn(c), st = isLocked(c) ? ['locked', 'locked'] : open.length && state.interlock ? ['inter', 'interlocked'] : ['free', 'free'];
+    const rows = colDrawers(c).slice().reverse().map(d => `<div class="dr ${d.userData.target ? 'open' : ''}"><span>${label(d)} · ${Math.round(d.userData.z1 - d.userData.z0 + 3)} mm</span><span>${d.userData.target ? 'open' : 'shut'}</span></div>`).join('');
+    return `<div class="col"><div class="h"><span>${c === 0 ? 'Left' : 'Right'}</span><span class="chip ${st[0]}">${st[1]}</span></div>${rows}</div>`;
+  }).join('');
+  paintTip();
+}
+
+// ---------- animate ----------
+const reduce = matchMedia('(prefers-reduced-motion: reduce)').matches;
+(function tick() {
+  requestAnimationFrame(tick);
+  if (hw) {
+    for (const d of drawers) {
+      const u = d.userData; u.t += reduce ? (u.target - u.t) : (u.target - u.t) * 0.12;
+      d.position.set(0, -u.depth * CFG.travelFrac * u.t / 1000, 0);  // kagu frame: -y is out of the front
+    }
+    [0, 1].forEach(c => { const b = hw.bars[c], up = isLocked(c) || openIn(c).length > 0 ? 1 : 0; b.t += (up - b.t) * 0.15; b.group.position.z = b.t * CFG.throw; });
+    if (hw.yoke) hw.yoke.position.z = (hw.bars[0].t) * CFG.throw;
+    for (const [id, k] of Object.entries(hw.keys)) { const want = state.locked[id] ? Math.PI / 2 : 0; k.t += (want - k.t) * 0.2;
+      k.slot.rotation[k.axis] = k.t; }
+    paintTip();
+  }
+  controls.update(); renderer.render(scene, camera);
+})();
+</script>
+</body></html>
