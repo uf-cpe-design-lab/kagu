@@ -233,15 +233,19 @@ function onModel(g) {
   kagu = g.scene.getObjectByName('kagu');
   kagu.traverse(o => { if (/^drawer-\d-\d$/.test(o.name)) drawers.push(o); });
   drawers.sort((a, b) => a.name.localeCompare(b.name, undefined, {numeric: true}));
+  g.scene.updateMatrixWorld(true);
+  const toKagu = kagu.matrixWorld.clone().invert();
+  const inKagu = m => toKagu.clone().multiply(m.matrixWorld);  // mesh → kagu frame (metres, model axes)
+  const kaguBox = obj => { const b = new THREE.Box3(); obj.traverse(m => { if (m.isMesh) { m.geometry.computeBoundingBox(); b.union(m.geometry.boundingBox.clone().applyMatrix4(inKagu(m))); } }); return b; };
   for (const d of drawers) {
     const [, c, i] = d.name.match(/drawer-(\d)-(\d)/);
-    const bb = new THREE.Box3();  // extents in kagu frame (metres); the drawer node carries no transform
-    d.traverse(m => { if (m.isMesh) { m.geometry.computeBoundingBox(); bb.union(m.geometry.boundingBox); } });
-    const front = d.children.find(m => m.name.startsWith('front'));
-    front.geometry.computeBoundingBox();
-    const fb = front.geometry.boundingBox;
+    const bb = kaguBox(d);
+    // the front node may load as a Group (several primitives) or a bare Mesh
+    const frontNode = d.children.find(m => m.name.startsWith('front'));
+    const fronts = []; frontNode.traverse(m => { if (m.isMesh) fronts.push({mesh: m, geo: m.geometry, k: inKagu(m)}); });
+    const fb = kaguBox(frontNode);
     d.userData = { col: +c, idx: +i, t: 0, target: 0, z0: fb.min.z * 1000, z1: fb.max.z * 1000,
-      depth: (bb.max.y - bb.min.y) * 1000, front, frontGeo: front.geometry, xIn: +c === 0 ? fb.max.x * 1000 : fb.min.x * 1000 };
+      depth: (bb.max.y - bb.min.y) * 1000, fronts, xIn: +c === 0 ? fb.max.x * 1000 : fb.min.x * 1000 };
     d.traverse(m => { if (m !== d) m.userData.drawer = d; });
   }
   const box = new THREE.Box3().setFromObject(g.scene), ctr = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
@@ -264,7 +268,7 @@ function keyPos(at) {
   return null;
 }
 function buildHardware(v) {
-  if (hw) { kagu.remove(hw.root); for (const d of drawers) { for (const g of [d.userData.hw, d.userData.hwKey]) if (g) d.remove(g); d.userData.hw = d.userData.hwKey = null; d.userData.front.geometry = d.userData.frontGeo; } }
+  if (hw) { kagu.remove(hw.root); for (const d of drawers) { for (const g of [d.userData.hw, d.userData.hwKey]) if (g) d.remove(g); d.userData.hw = d.userData.hwKey = null; for (const f of d.userData.fronts) f.mesh.geometry = f.geo; } }
   const root = new THREE.Group(); root.scale.setScalar(0.001); kagu.add(root);
   hw = { root, bars: [], keys: {} };
   const yb = CFG.frontY + CFG.barSetback;
@@ -290,7 +294,7 @@ function buildHardware(v) {
     for (const d of drawers) {
       const u = d.userData, xo = u.col === 0 ? -580 : 580, xi = u.xIn, want = u.col === 0 ? -CFG.postW / 2 - 2 : CFG.postW / 2 + 2;
       const sx = (want - xo) / (xi - xo), m = new THREE.Matrix4().makeTranslation(xo / 1000, 0, 0).multiply(new THREE.Matrix4().makeScale(sx, 1, 1)).multiply(new THREE.Matrix4().makeTranslation(-xo / 1000, 0, 0));
-      u.front.geometry = u.frontGeo.clone().applyMatrix4(m);
+      for (const f of u.fronts) f.mesh.geometry = f.geo.clone().applyMatrix4(f.k.clone().invert().multiply(m).multiply(f.k));
     }
   }
   if (v.shafts) for (const c of [0, 1]) {
