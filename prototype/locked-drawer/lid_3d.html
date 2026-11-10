@@ -87,6 +87,7 @@ table.parts td:first-child { font-family: var(--mono); white-space: nowrap; }
     <div class="camrow">
       <button id="camIso">3/4 view</button>
       <button id="camSide">Side view of the active Drawer</button>
+      <button id="camClose">Close-up of the sheet</button>
       <label><input type="checkbox" id="xray"> X-ray Carcass</label>
     </div>
     <div id="toast" hidden></div>
@@ -345,8 +346,13 @@ function rebuild() {
     if (v.pivot) {
       pivot.position.set(0, g.pivotY, g.zT);
       if (v.rail) {  // front edge 6 mm into the front's rabbet, back edge 6 mm into the rail's groove
-        pivot.add(sheet(x0 + 6, x1 - 6, G.boxFrontY + v.frontGap - g.pivotY, v.tongue, -g.t, 0));
-        const hole = new THREE.Mesh(new THREE.TorusGeometry(12.5, 1.2, 8, 32), M.print); hole.position.set(cx, G.boxFrontY + 40 - g.pivotY, 0.3); pivot.add(hole);
+        // sheet outline with a 25 mm finger hole through it, 40 mm behind the front edge
+        const yF = G.boxFrontY + v.frontGap - g.pivotY, shape = new THREE.Shape();
+        shape.moveTo(x0 + 6, yF); shape.lineTo(x1 - 6, yF); shape.lineTo(x1 - 6, v.tongue); shape.lineTo(x0 + 6, v.tongue); shape.closePath();
+        const hole = new THREE.Path(); hole.absarc(cx, G.boxFrontY + 40 - g.pivotY, 12.5, 0, Math.PI * 2, false); shape.holes.push(hole);
+        const geo = new THREE.ExtrudeGeometry(shape, {depth: g.t, bevelEnabled: false, curveSegments: 40});
+        const slab = new THREE.Mesh(geo, M.lid); slab.position.z = -g.t;
+        slab.add(new THREE.LineSegments(new THREE.EdgesGeometry(geo, 30), M.lidEdge)); pivot.add(slab);
         root.add(boxMesh(x0 + G.sideT, x1 - G.sideT, g.pivotY, G.boxRearY - G.backT, g.zT - 20, g.zT, M.wood));
       } else {
         const rearEdge = g.clash ? G.boxRearY : g.pivotY;
@@ -428,6 +434,13 @@ renderer.domElement.addEventListener('pointerup', e => {
 // ---------- camera ----------
 const toWorld = (x, y, z) => kagu.localToWorld(new THREE.Vector3(x / 1000, y / 1000, z / 1000));
 function camIso() { const c = toWorld(0, -400, 700); controls.target.copy(c); camera.position.copy(toWorld(900, -2600, 1500)); }
+function camClose() {  // looking down onto the pulled-out sheet's front edge, finger hole and label
+  const d = state.active; if (!d) return toast('Tick a Locked Drawer first.');
+  if (d.userData.target !== 1) clickDrawer(d);
+  const g = geom(d), cx = (g.x[0] + g.x[1]) / 2;
+  document.getElementById('xray').checked = false; xray();
+  controls.target.copy(toWorld(cx, -320 - g.T * 0.7, g.zT)); camera.position.copy(toWorld(cx + 150, -880 - g.T * 0.7, g.zT + 460));
+}
 function camSide() {
   const d = state.active; if (!d) return toast('Tick a Locked Drawer first.');
   if (d.userData.target !== 1) clickDrawer(d);
@@ -448,6 +461,7 @@ function buildUI() {
   for (const id of ['inMat', 'inTravel', 'inFull', 'inE', 'inEd']) document.getElementById(id).oninput = () => { if (id === 'inTravel' || id === 'inFull') state.lidTarget = {}; rebuild(); };
   document.getElementById('camIso').onclick = camIso;
   document.getElementById('camSide').onclick = camSide;
+  document.getElementById('camClose').onclick = camClose;
   document.getElementById('xray').onchange = xray;
   document.getElementById('actDrawer').onclick = () => state.active ? clickDrawer(state.active) : toast('Tick a Locked Drawer first.');
   document.getElementById('actKey').onclick = () => state.active ? clickKey(state.active) : toast('Tick a Locked Drawer first.');
